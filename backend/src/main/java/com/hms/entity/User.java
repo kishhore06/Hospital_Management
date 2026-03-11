@@ -26,6 +26,9 @@ public class User {
     private String specialization; // For DOCTOR
     private String department;     // For DOCTOR/ADMIN
     private Double fee;            // For DOCTOR
+    private String experience;     // For DOCTOR (e.g., "10 years")
+    private String email;          // For login
+    private String password;       // For login (plain text for demo)
 
     @ElementCollection
     @CollectionTable(name = "doctor_slots", joinColumns = @JoinColumn(name = "doctor_id"))

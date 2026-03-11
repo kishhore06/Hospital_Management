@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { authService } from '../services/api.js';
 import { User, Mail, Lock, UserPlus, ShieldCheck, Hospital } from '../components/Icons.js';
 import '../styles/Auth.css';
 
 const Signup = () => {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -15,11 +17,22 @@ const Signup = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        console.log('Signup logic here', formData);
-    };
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        try {
+            await authService.register(formData);
+            navigate('/login');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Error creating account. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
     return (
         <div className="auth-page">
             <div className="auth-container">
@@ -30,10 +43,14 @@ const Signup = () => {
                 </div>
 
                 <form className="auth-form" onSubmit={handleSubmit}>
+                    {error && (
+                        <div className="auth-error" style={{ color: 'red', marginBottom: '10px' }}>
+                            {error}
+                        </div>
+                    )}
                     <div className="form-group">
                         <label>Full Name</label>
                         <div className="input-wrapper">
-                            <User size={18} />
                             <input 
                                 type="text" 
                                 name="name"
@@ -47,7 +64,6 @@ const Signup = () => {
                     <div className="form-group">
                         <label>Email Address</label>
                         <div className="input-wrapper">
-                            <Mail size={18} />
                             <input 
                                 type="email" 
                                 name="email"
@@ -61,7 +77,6 @@ const Signup = () => {
                     <div className="form-group">
                         <label>Password</label>
                         <div className="input-wrapper">
-                            <Lock size={18} />
                             <input 
                                 type="password" 
                                 name="password"
@@ -72,22 +87,16 @@ const Signup = () => {
                         </div>
                     </div>
 
-                    <div className="form-group">
-                        <label>Register As</label>
-                        <div className="input-wrapper">
-                            <ShieldCheck size={18} />
-                            <select name="role" onChange={handleChange} value={formData.role}>
-                                <option value="PATIENT">Patient</option>
-                                <option value="DOCTOR">Doctor</option>
-                                <option value="ADMIN">Administrator</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <button type="submit" className="auth-button">
+                    <button type="submit" className="auth-button" disabled={loading}>
                         <div className="d-flex align-center justify-center">
-                            <UserPlus size={20} className="mr-2" />
-                            Create Account
+                            {loading ? (
+                                <span>Creating Account...</span>
+                            ) : (
+                                <>
+                                    <UserPlus size={20} className="mr-2" />
+                                    <span>Create Account</span>
+                                </>
+                            )}
                         </div>
                     </button>
                 </form>

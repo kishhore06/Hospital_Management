@@ -1,119 +1,150 @@
 import React, { useState, useEffect } from 'react';
 import { appointmentService } from '../services/api.js';
-import { CheckCircle, Clock, Calendar, User } from '../components/Icons.js';
+import { useAuth } from '../context/AuthContext.js';
+
+const statusConfig = {
+    BOOKED: { color: '#1d4ed8', bg: '#dbeafe', label: 'Booked' },
+    CONFIRMED: { color: '#059669', bg: '#d1fae5', label: 'Confirmed' },
+    COMPLETED: { color: '#475569', bg: '#f1f5f9', label: 'Completed' },
+    CANCELLED: { color: '#991b1b', bg: '#fee2e2', label: 'Cancelled' },
+};
 
 const DoctorDashboard = () => {
-  const [appointments, setAppointments] = useState([]);
-  const [msg, setMsg] = useState({ text: '', type: '' });
+    const { user } = useAuth();
+    const [appointments, setAppointments] = useState([]);
+    const [toast, setToast] = useState({ text: '', type: '' });
+    const [filter, setFilter] = useState('ALL');
 
-  // Fixed doctor ID for demo (Dr. Smith from DataInitializer)
-  const DOCTOR_ID = 2;
+    useEffect(() => {
+        if (user?.id) fetchSchedule();
+    }, [user]);
 
-  useEffect(() => {
-    fetchSchedule();
-  }, []);
+    const fetchSchedule = async () => {
+        try {
+            const res = await appointmentService.getDoctorSchedule(user.id);
+            setAppointments(res.data);
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
-  const fetchSchedule = async () => {
-    try {
-      const res = await appointmentService.getDoctorSchedule(DOCTOR_ID);
-      setAppointments(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    const showToast = (text, type = 'success') => {
+        setToast({ text, type });
+        setTimeout(() => setToast({ text: '', type: '' }), 3000);
+    };
 
-  const handleConfirm = async (id) => {
-    try {
-      await appointmentService.confirm(id, DOCTOR_ID);
-      setMsg({ text: 'Appointment confirmed!', type: 'success' });
-      fetchSchedule();
-      setTimeout(() => setMsg({ text: '', type: '' }), 3000);
-    } catch (err) {
-      setMsg({ text: 'Failed to confirm', type: 'error' });
-    }
-  };
+    const handleConfirm = async (id) => {
+        try {
+            await appointmentService.confirm(id, user.id);
+            showToast('✅ Appointment confirmed!');
+            fetchSchedule();
+        } catch {
+            showToast('❌ Failed to confirm appointment.', 'error');
+        }
+    };
 
-  const handleComplete = async (id) => {
-    try {
-      await appointmentService.complete(id, DOCTOR_ID);
-      setMsg({ text: 'Appointment completed!', type: 'success' });
-      fetchSchedule();
-      setTimeout(() => setMsg({ text: '', type: '' }), 3000);
-    } catch (err) {
-      setMsg({ text: 'Failed to complete', type: 'error' });
-    }
-  };
+    const handleComplete = async (id) => {
+        try {
+            await appointmentService.complete(id, user.id);
+            showToast('✅ Appointment marked as completed!');
+            fetchSchedule();
+        } catch {
+            showToast('❌ Failed to complete appointment.', 'error');
+        }
+    };
 
-  return (
-    <div className="doctor-dashboard">
-      <header className="mb-4">
-        <h1>Doctor's Schedule</h1>
-        <p className="text-muted">Manage your daily appointments and patient confirmations.</p>
-      </header>
+    const filtered = filter === 'ALL' ? appointments : appointments.filter(a => a.status === filter);
 
-      {msg.text && (
-        <div className={`badge badge-${msg.type} mb-4`} style={{display: 'block', padding: '1rem', textAlign: 'center'}}>
-          {msg.text}
+    const counts = appointments.reduce((acc, a) => {
+        acc[a.status] = (acc[a.status] || 0) + 1;
+        return acc;
+    }, {});
+
+    return (
+        <div className="doctor-dashboard">
+            {toast.text && (
+                <div className={`toast toast-${toast.type}`}>{toast.text}</div>
+            )}
+
+            <div className="dashboard-header">
+                <div>
+                    <h1>My Schedule</h1>
+                    <p className="text-muted">Welcome, {user?.name}! Manage your patient appointments below.</p>
+                </div>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="stats-row">
+                {Object.entries(statusConfig).map(([status, cfg]) => (
+                    <div key={status} className="stat-card" style={{ borderTop: `3px solid ${cfg.color}` }}>
+                        <div className="stat-card-icon" style={{ background: cfg.bg }}>
+                            {status === 'BOOKED' ? '📋' : status === 'CONFIRMED' ? '✅' : status === 'COMPLETED' ? '🏁' : '❌'}
+                        </div>
+                        <div>
+                            <p className="stat-card-label">{cfg.label}</p>
+                            <h2 className="stat-card-value">{counts[status] || 0}</h2>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="filter-tabs">
+                {['ALL', 'BOOKED', 'CONFIRMED', 'COMPLETED', 'CANCELLED'].map(f => (
+                    <button
+                        key={f}
+                        className={`filter-tab ${filter === f ? 'active' : ''}`}
+                        onClick={() => setFilter(f)}
+                    >
+                        {f === 'ALL' ? `All (${appointments.length})` : `${statusConfig[f]?.label} (${counts[f] || 0})`}
+                    </button>
+                ))}
+            </div>
+
+            {/* Appointments */}
+            <div className="appointments-list">
+                {filtered.length === 0 && (
+                    <div className="empty-state-box">
+                        <span style={{ fontSize: '3rem' }}>📭</span>
+                        <p>No appointments in this category.</p>
+                    </div>
+                )}
+                {filtered.map(app => {
+                    const cfg = statusConfig[app.status] || statusConfig.BOOKED;
+                    return (
+                        <div key={app.id} className="appointment-card">
+                            <div className="appt-card-left">
+                                <div className="appt-patient-icon">👤</div>
+                                <div>
+                                    <h4>Patient ID #{app.patientId}</h4>
+                                    <p className="text-muted small">Appointment #{app.id}</p>
+                                </div>
+                            </div>
+                            <div className="appt-card-mid">
+                                <span className="appt-info-item">📅 {app.appointmentDate}</span>
+                                <span className="appt-info-item">🕐 {app.startTime} – {app.endTime}</span>
+                            </div>
+                            <div className="appt-card-right">
+                                <span className="status-badge" style={{ background: cfg.bg, color: cfg.color }}>
+                                    {cfg.label}
+                                </span>
+                                {app.status === 'BOOKED' && (
+                                    <button className="btn-action btn-confirm" onClick={() => handleConfirm(app.id)}>
+                                        ✅ Confirm
+                                    </button>
+                                )}
+                                {app.status === 'CONFIRMED' && (
+                                    <button className="btn-action btn-complete" onClick={() => handleComplete(app.id)}>
+                                        🏁 Complete
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
-      )}
-
-      <div className="grid">
-        {appointments.length === 0 && <p>No appointments scheduled yet.</p>}
-        {appointments.map(app => (
-          <div key={app.id} className="card">
-            <div className="d-flex justify-between align-center mb-3">
-              <span className={`badge badge-${app.status.toLowerCase()}`}>{app.status}</span>
-              <span className="text-muted small">ID: #{app.id}</span>
-            </div>
-            
-            <div className="d-flex align-center mb-3">
-              <div style={{background: '#f1f5f9', padding: '10px', borderRadius: '10px', marginRight: '1rem'}}>
-                <User size={20} color="#64748b" />
-              </div>
-              <div>
-                <h4 className="mb-0">Patient ID: {app.patientId}</h4>
-                <p className="small text-muted">Awaiting consultation</p>
-              </div>
-            </div>
-
-            <div className="d-flex gap-4 mb-4">
-              <div className="d-flex align-center gap-1 small">
-                <Calendar size={14} /> {app.appointmentDate}
-              </div>
-              <div className="d-flex align-center gap-1 small">
-                <Clock size={14} /> {app.startTime} - {app.endTime}
-              </div>
-            </div>
-
-            {app.status === 'BOOKED' && (
-              <button 
-                className="btn btn-primary w-100"
-                onClick={() => handleConfirm(app.id)}
-              >
-                <CheckCircle size={16} /> Confirm Appointment
-              </button>
-            )}
-
-            {app.status === 'CONFIRMED' && (
-              <button 
-                className="btn btn-primary w-100"
-                onClick={() => handleComplete(app.id)}
-                style={{background: 'var(--success)'}}
-              >
-                <CheckCircle size={16} /> Mark Completed
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <style>{`
-        .justify-between { justify-content: space-between; }
-        .gap-4 { gap: 1rem; }
-        .gap-1 { gap: 0.25rem; }
-      `}</style>
-    </div>
-  );
+    );
 };
 
 export default DoctorDashboard;

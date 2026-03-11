@@ -1,138 +1,176 @@
 import React, { useState, useEffect } from 'react';
 import { doctorService, appointmentService } from '../services/api.js';
-import { Search, Calendar, Clock, User, CheckCircle } from '../components/Icons.js';
+import { useAuth } from '../context/AuthContext.js';
+
+const specialtyColors = {
+    'Cardiology': { bg: '#fef3c7', color: '#d97706', icon: '❤️' },
+    'Pediatrics': { bg: '#d1fae5', color: '#059669', icon: '👶' },
+    'Neurology': { bg: '#ede9fe', color: '#7c3aed', icon: '🧠' },
+    'Orthopedics': { bg: '#dbeafe', color: '#1d4ed8', icon: '🦴' },
+    'Dermatology': { bg: '#fce7f3', color: '#db2777', icon: '🌟' },
+};
+
+const getSpecialtyStyle = (spec) => specialtyColors[spec] || { bg: '#e0f2fe', color: '#0369a1', icon: '🏥' };
 
 const PatientDashboard = () => {
-  const [doctors, setDoctors] = useState([]);
-  const [search, setSearch] = useState('');
-  const [selectedDoctor, setSelectedDoctor] = useState(null);
-  const [bookingSlot, setBookingSlot] = useState(null);
-  const [msg, setMsg] = useState({ text: '', type: '' });
+    const { user } = useAuth();
+    const [doctors, setDoctors] = useState([]);
+    const [search, setSearch] = useState('');
+    const [selectedDoctor, setSelectedDoctor] = useState(null);
+    const [bookingSlot, setBookingSlot] = useState(null);
+    const [toast, setToast] = useState({ text: '', type: '' });
+    const [expandedDoctor, setExpandedDoctor] = useState(null);
 
-  // Fixed patient ID for demo (John Doe from DataInitializer)
-  const PATIENT_ID = 4;
+    useEffect(() => {
+        fetchDoctors();
+    }, []);
 
-  useEffect(() => {
-    fetchDoctors();
-  }, []);
+    const fetchDoctors = async (spec = '') => {
+        try {
+            const res = await doctorService.search(spec);
+            setDoctors(res.data);
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
-  const fetchDoctors = async (spec = '') => {
-    try {
-      const res = await doctorService.search(spec);
-      setDoctors(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    const showToast = (text, type = 'success') => {
+        setToast({ text, type });
+        setTimeout(() => setToast({ text: '', type: '' }), 3500);
+    };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchDoctors(search);
-  };
+    const handleSearch = (e) => {
+        e.preventDefault();
+        fetchDoctors(search);
+    };
 
-  const handleBook = async () => {
-    if (!bookingSlot || !selectedDoctor) return;
-    try {
-      const appointment = {
-        patientId: PATIENT_ID,
-        doctorId: selectedDoctor.id,
-        appointmentDate: bookingSlot.date,
-        startTime: bookingSlot.startTime,
-        endTime: bookingSlot.endTime,
-      };
-      await appointmentService.book(appointment);
-      setMsg({ text: 'Appointment booked successfully!', type: 'success' });
-      setBookingSlot(null);
-      setSelectedDoctor(null);
-      setTimeout(() => setMsg({ text: '', type: '' }), 3000);
-    } catch (err) {
-      setMsg({ text: err.response?.data?.message || 'Booking failed (Overlap or Unavailable)', type: 'error' });
-    }
-  };
+    const handleBook = async () => {
+        if (!bookingSlot || !selectedDoctor) return;
+        try {
+            const appointment = {
+                patientId: user.id,
+                doctorId: selectedDoctor.id,
+                appointmentDate: bookingSlot.date,
+                startTime: bookingSlot.startTime,
+                endTime: bookingSlot.endTime,
+            };
+            await appointmentService.book(appointment);
+            showToast(`✅ Appointment with ${selectedDoctor.name} booked successfully!`, 'success');
+            setBookingSlot(null);
+            setSelectedDoctor(null);
+            setExpandedDoctor(null);
+        } catch (err) {
+            showToast('❌ ' + (err.response?.data?.message || 'Booking failed – slot may be unavailable.'), 'error');
+        }
+    };
 
-  return (
-    <div className="patient-dashboard">
-      <header className="mb-4">
-        <h1 className="mb-2">Find a Specialist</h1>
-        <form onSubmit={handleSearch} className="d-flex gap-2">
-          <div className="flex-grow-1 position-relative">
-            <Search className="position-absolute" style={{left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b'}} size={18} />
-            <input 
-              type="text" 
-              className="input pl-10" 
-              placeholder="Search by specialization (e.g. Cardiology)..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{paddingLeft: '40px'}}
-            />
-          </div>
-          <button type="submit" className="btn btn-primary">Search</button>
-        </form>
-      </header>
-
-      {msg.text && (
-        <div className={`badge badge-${msg.type} mb-4`} style={{display: 'block', padding: '1rem', textAlign: 'center'}}>
-          {msg.text}
-        </div>
-      )}
-
-      <div className="grid">
-        {doctors.map(doc => (
-          <div key={doc.id} className="card">
-            <div className="d-flex align-center mb-3">
-              <div style={{background: '#eef2ff', padding: '12px', borderRadius: '12px', marginRight: '1rem'}}>
-                <User size={24} color="#4f46e5" />
-              </div>
-              <div>
-                <h3 className="mb-0">{doc.name}</h3>
-                <span className="badge badge-booked" style={{fontSize: '0.7rem'}}>{doc.specialization}</span>
-              </div>
-            </div>
-            <p className="text-muted mb-4 small">{doc.department} • Fee: ${doc.fee}</p>
-            
-            <div className="slots">
-              <h5 className="mb-2">Available Slots</h5>
-              {doc.availableSlots.map((slot, i) => (
-                <button 
-                  key={i} 
-                  className={`btn btn-outline mb-2 w-100 ${bookingSlot === slot ? 'active-slot' : ''}`}
-                  onClick={() => {
-                    setSelectedDoctor(doc);
-                    setBookingSlot(slot);
-                  }}
-                  style={bookingSlot === slot ? {borderColor: '#4f46e5', background: '#eef2ff'} : {}}
-                >
-                  <Calendar size={14} /> {slot.date} • <Clock size={14} /> {slot.startTime} - {slot.endTime}
-                </button>
-              ))}
-            </div>
-
-            {selectedDoctor?.id === doc.id && bookingSlot && (
-              <button className="btn btn-primary w-100 mt-4" onClick={handleBook}>
-                Confirm Booking
-              </button>
+    return (
+        <div className="patient-dashboard">
+            {toast.text && (
+                <div className={`toast toast-${toast.type}`}>{toast.text}</div>
             )}
-          </div>
-        ))}
-      </div>
 
-      <style>{`
-        .mb-2 { margin-bottom: 0.5rem; }
-        .mb-3 { margin-bottom: 1rem; }
-        .mb-4 { margin-bottom: 1.5rem; }
-        .mr-2 { margin-right: 0.5rem; }
-        .w-100 { width: 100%; }
-        .text-muted { color: #64748b; }
-        .small { font-size: 0.875rem; }
-        .d-flex { display: flex; }
-        .align-center { align-items: center; }
-        .gap-2 { gap: 0.5rem; }
-        .flex-grow-1 { flex-grow: 1; }
-        .position-relative { position: relative; }
-        .position-absolute { position: absolute; }
-      `}</style>
-    </div>
-  );
+            <div className="dashboard-header">
+                <div>
+                    <h1>Find a Specialist</h1>
+                    <p className="text-muted">Hello, {user?.name}! Book an appointment with our top doctors.</p>
+                </div>
+            </div>
+
+            <form onSubmit={handleSearch} className="search-bar-form">
+                <div className="search-input-wrap">
+                    <span className="search-icon">🔍</span>
+                    <input
+                        type="text"
+                        className="search-input"
+                        placeholder="Search by specialization (e.g. Cardiology, Neurology)..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+                <button type="submit" className="btn-search">Search</button>
+                {search && (
+                    <button type="button" className="btn-clear" onClick={() => { setSearch(''); fetchDoctors(''); }}>
+                        Clear
+                    </button>
+                )}
+            </form>
+
+            <div className="doctors-grid">
+                {doctors.length === 0 && (
+                    <div className="empty-state-box">
+                        <span style={{ fontSize: '3rem' }}>🔎</span>
+                        <p>No doctors found for your search.</p>
+                        <button onClick={() => { setSearch(''); fetchDoctors(''); }} className="btn-clear-search">Show All Doctors</button>
+                    </div>
+                )}
+                {doctors.map(doc => {
+                    const style = getSpecialtyStyle(doc.specialization);
+                    const isExpanded = expandedDoctor === doc.id;
+                    return (
+                        <div key={doc.id} className={`doctor-card ${isExpanded ? 'expanded' : ''}`}>
+                            <div className="doctor-card-top">
+                                <div className="doc-avatar-sm" style={{ background: style.bg }}>
+                                    <span>{style.icon}</span>
+                                </div>
+                                <div className="doc-info">
+                                    <h3>{doc.name}</h3>
+                                    <span className="spec-pill" style={{ background: style.bg, color: style.color }}>
+                                        {doc.specialization}
+                                    </span>
+                                    <p className="text-muted small">{doc.department}</p>
+                                </div>
+                            </div>
+
+                            <div className="doc-meta-row">
+                                <span className="meta-item">💰 ₹{doc.fee}/visit</span>
+                                {doc.experience && <span className="meta-item">⭐ {doc.experience}</span>}
+                                <span className="meta-item">📅 {doc.availableSlots?.length || 0} slots</span>
+                            </div>
+
+                            <button
+                                className={`btn-see-slots ${isExpanded ? 'active' : ''}`}
+                                onClick={() => {
+                                    setExpandedDoctor(isExpanded ? null : doc.id);
+                                    setSelectedDoctor(null);
+                                    setBookingSlot(null);
+                                }}
+                            >
+                                {isExpanded ? '▲ Hide Slots' : '📅 See Available Slots'}
+                            </button>
+
+                            {isExpanded && (
+                                <div className="slots-panel">
+                                    <h5>Available Appointment Slots</h5>
+                                    {doc.availableSlots?.length === 0 ? (
+                                        <p className="text-muted small">No slots available currently.</p>
+                                    ) : (
+                                        doc.availableSlots.map((slot, i) => (
+                                            <button
+                                                key={i}
+                                                className={`slot-btn ${bookingSlot === slot && selectedDoctor?.id === doc.id ? 'selected-slot' : ''}`}
+                                                onClick={() => {
+                                                    setSelectedDoctor(doc);
+                                                    setBookingSlot(slot);
+                                                }}
+                                            >
+                                                📅 {slot.date} &nbsp;•&nbsp; 🕐 {slot.startTime} – {slot.endTime}
+                                            </button>
+                                        ))
+                                    )}
+                                    {selectedDoctor?.id === doc.id && bookingSlot && (
+                                        <button className="btn-confirm-booking" onClick={handleBook}>
+                                            ✅ Confirm Appointment
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 };
 
 export default PatientDashboard;

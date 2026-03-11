@@ -6,8 +6,7 @@
   --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   --glass-bg: rgba(255, 255, 255, 0.85);
   --glass-blur: blur(10px);
-  --text-main: #1f2937;
-  --text-muted: #6b7280;
+  --glass-blur: blur(10px);
 }
 
 .auth-page {
@@ -46,12 +45,12 @@
 .auth-header h1 {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--text-main);
+  color: #1f2937;
   margin-bottom: 8px;
 }
 
 .auth-header p {
-  color: var(--text-muted);
+  color: #6b7280;
   font-size: 0.95rem;
 }
 
@@ -70,7 +69,7 @@
 .form-group label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-main);
+  color: #1f2937;
 }
 
 .input-wrapper {
@@ -94,6 +93,8 @@
   outline: none;
   transition: all 0.2s;
   font-size: 0.95rem;
+  color: #1f2937;
+  background-color: #ffffff;
 }
 
 .input-wrapper input:focus {
@@ -127,7 +128,7 @@
   text-align: center;
   margin-top: 25px;
   font-size: 0.9rem;
-  color: var(--text-muted);
+  color: #6b7280;
 }
 
 .auth-footer a {
