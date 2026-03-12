@@ -10,7 +10,7 @@ const specialtyColors = {
     'Orthopedics': { bg: 'rgba(219, 234, 254, 0.1)', color: '#60a5fa', icon: '🦴' },
     'Dermatology': { bg: 'rgba(252, 231, 243, 0.1)', color: '#f472b6', icon: '🌟' },
 };
-
+//kishhore
 const getSpecialtyStyle = (spec) => specialtyColors[spec] || { bg: 'rgba(224, 242, 254, 0.1)', color: '#38bdf8', icon: '🏥' };
 
 const HomePage = () => {
